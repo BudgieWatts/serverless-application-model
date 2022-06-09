@@ -242,6 +242,7 @@ class Api(EventSource):
         "RestApiId": PropertyType(True, is_str()),
         "Stage": PropertyType(False, is_str()),
         "Auth": PropertyType(False, is_type(dict)),
+        "JsonRequestTemplate": PropertyType(False, is_str()),
     }
 
     def resources_to_link(self, resources):
@@ -436,10 +437,27 @@ class Api(EventSource):
             "application/json": fnSub(
                 json.dumps(
                     {
-                        "input": "$util.escapeJavaScript($input.json('$'))",
+                        "input": self.JsonRequestTemplate if self.JsonRequestTemplate else "$util.escapeJavaScript("
+                                                                                           "$input.json('$'))",
                         "stateMachineArn": "${" + resource.logical_id + "}",
-                    }
+                    },  cls=self._RequestTemplateJsonEncoder
                 )
             )
         }
         return request_templates
+
+    class _RequestTemplateJsonEncoder(json.JSONEncoder):
+        def encode(self, obj):
+            """ The default encoder deals with escaping some characters in such a way that a valid RequestTemplate
+                specified in a SAM template won't work by the time it makes it into a live API Gateway. This allows
+                a user to specify a request template like the documented ".replaceAll("\\'", "'")" variation and have
+                it work after it's deployed """
+
+            template = obj['input']
+            while template.endswith('\n'):
+                template = template[:-1]
+            while template.startswith('\n'):
+                template = template[1:]
+
+            return "{{\"input\": \"{template}\", \"stateMachineArn\": \"{stateMachineArn}\"}}"\
+                .format(template=template, stateMachineArn=obj['stateMachineArn'])
