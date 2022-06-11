@@ -103,3 +103,29 @@ class ApiEventSource(TestCase):
             }
           },
         )
+
+    def test_custom_request_template_removes_trailing_newlines(self):
+        self.api_event_source.JsonRequestTemplate = '$util.escapeJavaScript($input.json(\'$\')).replaceAll("\\'", "'")\n\n\n'
+        request_template = self.api_event_source._generate_request_template(resource=self.state_machine)
+        self.assertEqual(
+          request_template,
+          {
+            "application/json": {
+              "Fn::Sub": '{"input": "$util.escapeJavaScript($input.json(\'$\')).replaceAll("\\'", "'")", '
+                         '"stateMachineArn": "${MockStateMachine}"}'
+            }
+          },
+        )
+
+    def test_custom_request_template_removes_leading_newlines(self):
+        self.api_event_source.JsonRequestTemplate = '\n\n\n$util.escapeJavaScript($input.json(\'$\')).replaceAll("\\'", "'")'
+        request_template = self.api_event_source._generate_request_template(resource=self.state_machine)
+        self.assertEqual(
+          request_template,
+          {
+            "application/json": {
+              "Fn::Sub": '{"input": "$util.escapeJavaScript($input.json(\'$\')).replaceAll("\\'", "'")", '
+                         '"stateMachineArn": "${MockStateMachine}"}'
+            }
+          },
+        )
